@@ -57,7 +57,7 @@ public class NavAgentExample : MonoBehaviour {
 
 			return m_NavMeshAgent;
 		}
-	}
+	} 
 
 	#endregion
 
@@ -113,8 +113,8 @@ public class NavAgentExample : MonoBehaviour {
 		Transform nextWaypointTransform = null;
 
 		// Calculate index of next waypoint factoring in the increment with wrap-around and fetch waypoint 
-		int nextWaypoint = (m_CurrentIndex + incStep >= m_WaypointNetwork.Waypoints.Count) ? 0 : m_CurrentIndex + incStep;
-		nextWaypointTransform = m_WaypointNetwork.Waypoints[nextWaypoint];
+		int nextWaypoint = (m_CurrentIndex + incStep >= m_WaypointNetwork.WaypointsTransform.Length) ? 0 : m_CurrentIndex + incStep;
+		nextWaypointTransform = m_WaypointNetwork.WaypointsTransform[nextWaypoint];
 
 		// Assuming we have a valid waypoint transform
 		if (nextWaypointTransform != null) {
