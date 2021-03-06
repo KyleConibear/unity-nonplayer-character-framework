@@ -140,12 +140,12 @@ public class NavAgentExample : MonoBehaviour {
 	private IEnumerator JumpCoroutine(float height, float duration) {
 		var data = this.NavMeshAgent.currentOffMeshLinkData;
 		var startPosition = this.NavMeshAgent.transform.position;
-		var endposition = data.endPos + (this.NavMeshAgent.baseOffset * Vector3.up);
+		var endPosition = data.endPos + (this.NavMeshAgent.baseOffset * Vector3.up);
 		var time = 0f;
 
 		while (time <= duration) {
 			var normalizedTime = time / duration;
-			this.NavMeshAgent.transform.position = Vector3.Lerp(startPosition, endposition, normalizedTime) + (m_JumpCurve.Evaluate(time) * (Vector3.up * height));
+			this.NavMeshAgent.transform.position = Math.PositionLerp(startPosition, endPosition, (Vector3.up * height), m_JumpCurve, normalizedTime, time);
 			time += Time.deltaTime;
 			yield return 0;
 		}
