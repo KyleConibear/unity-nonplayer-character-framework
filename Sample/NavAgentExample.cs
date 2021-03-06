@@ -1,61 +1,159 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using Conibear;
+using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class NavAgentExample : MonoBehaviour {
+	#region Internal ShowOnly SerializeFields
+
+	[Header("Debug Stats")]
+	[ShowOnly] [SerializeField]
+	private bool m_IsTraversingOffMeshLink = false;
+
+	#endregion
+
+
+	#region SerializeFields
+
 	[SerializeField]
-	private AIWaypointNetwork WaypointNetwork = null;
+	private AIWaypointNetwork m_WaypointNetwork = null;
 
-	private NavMeshAgent _navAgent = null;
+	[Header("Jump")]
+	[SerializeField]
+	[Range(1, 3)]
+	private float m_JumpHeight = 2f;
 
-	private int CurrentIndex = 0;
-	private NavMeshPathStatus PathStatus = NavMeshPathStatus.PathInvalid;
+	[SerializeField]
+	[Range(0.5f, 1.5f)]
+	private float m_JumpDuration = 1f;
 
-	void Start() {
-		_navAgent = GetComponent<NavMeshAgent>();
+	[SerializeField]
+	private AnimationCurve m_JumpCurve = new AnimationCurve();
 
-		if (WaypointNetwork == null) return;
+	#endregion
+
+
+	#region Internal Fields
+
+	private NavMeshAgent m_NavMeshAgent = null;
+
+	private int m_CurrentIndex = 0;
+
+	private NavMeshPathStatus m_PathStatus = NavMeshPathStatus.PathInvalid;
+
+	private IEnumerator m_JumpIEnumerable = null;
+
+	#endregion
+
+
+	#region Internal Properties
+
+	protected NavMeshAgent NavMeshAgent {
+		get {
+			if (m_NavMeshAgent == null) {
+				m_NavMeshAgent = GetComponent<NavMeshAgent>();
+			}
+
+			return m_NavMeshAgent;
+		}
+	}
+
+	#endregion
+
+
+	#region Public Properties
+
+	public bool IsTraversingOffMeshLink => m_IsTraversingOffMeshLink = m_NavMeshAgent.isOnOffMeshLink;
+
+	public bool IsJumping => m_JumpIEnumerable != null;
+
+	#endregion
+
+
+	#region MonoBehaviour
+
+	private void Start() {
+		m_NavMeshAgent = GetComponent<NavMeshAgent>();
+
+		if (m_WaypointNetwork == null) return;
 
 		SetNextDestination(false);
 	}
 
+	private void Update() {
+		var hasPath = this.NavMeshAgent.hasPath;
+		var pathPending = this.NavMeshAgent.pathPending;
+		var pathStale = this.NavMeshAgent.isPathStale;
+		var pathStatus = this.NavMeshAgent.pathStatus;
 
-	void Update() {
-		var hasPath = _navAgent.hasPath;
-		var pathPending = _navAgent.pathPending;
-		var pathStale = _navAgent.isPathStale;
-		var pathStatus = _navAgent.pathStatus;
+		if (this.IsTraversingOffMeshLink) {
+			this.Jump();
+		}
 
 		// If we don't have a path and one isn't pending then set the next
 		// waypoint as the target, otherwise if path is stale regenerate path
-		if ((_navAgent.remainingDistance <=_navAgent.stoppingDistance && !pathPending) || pathStatus == NavMeshPathStatus.PathInvalid)
-			SetNextDestination(true);
-		else if (_navAgent.isPathStale)
-			SetNextDestination(false);
+		if ((this.NavMeshAgent.remainingDistance <= this.NavMeshAgent.stoppingDistance && !pathPending) || pathStatus == NavMeshPathStatus.PathInvalid)
+			this.SetNextDestination(true);
+		else if (this.NavMeshAgent.isPathStale)
+			this.SetNextDestination(false);
 	}
 
-	void SetNextDestination(bool increment) {
+	#endregion
+
+
+	#region Internal Methods
+
+	private void SetNextDestination(bool increment) {
 		// If no network return
-		if (!WaypointNetwork) return;
+		if (!m_WaypointNetwork) return;
 
 		// Calculatehow much the current waypoint index needs to be incremented
 		int incStep = increment ? 1 : 0;
 		Transform nextWaypointTransform = null;
 
 		// Calculate index of next waypoint factoring in the increment with wrap-around and fetch waypoint 
-		int nextWaypoint = (CurrentIndex + incStep >= WaypointNetwork.Waypoints.Count) ? 0 : CurrentIndex + incStep;
-		nextWaypointTransform = WaypointNetwork.Waypoints[nextWaypoint];
+		int nextWaypoint = (m_CurrentIndex + incStep >= m_WaypointNetwork.Waypoints.Count) ? 0 : m_CurrentIndex + incStep;
+		nextWaypointTransform = m_WaypointNetwork.Waypoints[nextWaypoint];
 
 		// Assuming we have a valid waypoint transform
 		if (nextWaypointTransform != null) {
 			// Update the current waypoint index, assign its position as the NavMeshAgents
 			// Destination and then return
-			CurrentIndex = nextWaypoint;
-			_navAgent.destination = nextWaypointTransform.position;
+			m_CurrentIndex = nextWaypoint;
+			m_NavMeshAgent.destination = nextWaypointTransform.position;
 			return;
 		}
 
 		// We did not find a valid waypoint in the list for this iteration
-		CurrentIndex = nextWaypoint;
+		m_CurrentIndex = nextWaypoint;
 	}
+
+	private void Jump() {
+		if (IsJumping)
+			return;
+
+		m_JumpIEnumerable = this.JumpCoroutine(m_JumpHeight, m_JumpDuration);
+		StartCoroutine(m_JumpIEnumerable);
+	}
+
+	private IEnumerator JumpCoroutine(float height, float duration) {
+		var data = this.NavMeshAgent.currentOffMeshLinkData;
+		var startPosition = this.NavMeshAgent.transform.position;
+		var endposition = data.endPos + (this.NavMeshAgent.baseOffset * Vector3.up);
+		var time = 0f;
+
+		while (time <= duration) {
+			var normalizedTime = time / duration;
+			this.NavMeshAgent.transform.position = Vector3.Lerp(startPosition, endposition, normalizedTime) + (m_JumpCurve.Evaluate(time) * (Vector3.up * height));
+			time += Time.deltaTime;
+			yield return 0;
+		}
+
+		m_NavMeshAgent.CompleteOffMeshLink();
+
+		m_JumpIEnumerable = null;
+	}
+
+	#endregion
 }
